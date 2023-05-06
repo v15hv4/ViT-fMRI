@@ -5,3 +5,4 @@ test_trainer/
 __pycache__/
 wandb
 .vscode/
+fMRI-Classification/
