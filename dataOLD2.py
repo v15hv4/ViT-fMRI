@@ -4,16 +4,16 @@ import nibabel as nib
 
 import torch
 import pytorch_lightning as pl
-from torch.utils.data import Dataset, DataLoader, random_split
+from torch.utils.data import Dataset, DataLoader
 
 # dataset class for the GenericObjectDecoding dataset
 class GODData(Dataset):
-    DATA_PATH = "data/10classes"
+    DATA_PATH = "data/processed"
 
-    def __init__(self, subject="01", transform=None, rois=[]):
+    def __init__(self, subject="01", session_id="01", task="perception", train=True, transform=None, rois=[]):
         self.subject = subject
-        # self.session = f"{task}{'Training' if train else 'Test'}{session_id}"
-        self.length = len(glob.glob(f"{self.DATA_PATH}/sub-{subject}/dataset/fmris/*"))
+        self.session = f"{task}{'Training' if train else 'Test'}{session_id}"
+        self.length = len(glob.glob(f"{self.DATA_PATH}/sub-{subject}/ses-{self.session}/fmris/*"))
         self.transform = transform
 
         # construct ROI mask
@@ -41,8 +41,8 @@ class GODData(Dataset):
 
     def __getitem__(self, idx):
         # load data
-        fmri = np.load(f"{self.DATA_PATH}/sub-{self.subject}/dataset/fmris/{idx}.npy")
-        category = np.load(f"{self.DATA_PATH}/sub-{self.subject}/dataset/categories/{idx}.npy")
+        fmri = np.load(f"{self.DATA_PATH}/sub-{self.subject}/ses-{self.session}/fmris/{idx}.npy")
+        category = np.load(f"{self.DATA_PATH}/sub-{self.subject}/ses-{self.session}/categories/{idx}.npy")
 
         # apply ROI mask to fMRI data
         fmri = np.where(self.roi_mask, fmri, 0)
@@ -59,19 +59,12 @@ class GODData(Dataset):
 
 # lightning data module for the GenericObjectDecoding dataset
 class GODDataModule(pl.LightningDataModule):
-    def __init__(self, full_data, val_frac=0.2, batch_size=16):
+    def __init__(self, train_data, val_data, batch_size=8):
         super().__init__()
 
-        self.full_data = full_data
-        self.val_frac = val_frac
+        self.train_data = train_data
+        self.val_data = val_data
         self.batch_size = batch_size
-
-    def setup(self, stage=""):
-        full_size = len(self.full_data)
-        val_size = int(self.val_frac * full_size)
-        train_size = full_size - val_size
-
-        self.train_data, self.val_data = random_split(self.full_data, [train_size, val_size])
 
     def collate_fn(self, batch):
         return tuple(zip(*batch))
