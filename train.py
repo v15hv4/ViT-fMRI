@@ -25,23 +25,26 @@ parser.add_argument("--val-freq", type=int, default=10)
 args = parser.parse_args()
 
 # instantiate data
+rois = ["V1d", "V1v", "V2d", "V2v", "V3d", "V3v", "hV4", "LOC", "FFA", "PPA", "HVC"]
 normalize = lambda x: x / x.max()
 train_data = GODData(
     subject=args.subject, 
     session_id=args.session_id, 
     task=args.task, 
     train=True, 
-    transform=normalize
+    transform=normalize,
+    rois=rois,
 )
 val_data = GODData(
     subject=args.subject, 
     session_id=args.subject, 
     task=args.task, 
     train=False, 
-    transform=normalize
+    transform=normalize,
+    rois=rois,
 )
 print(f"# train: {len(train_data)}, # val: {len(val_data)}")
-data = GODDataModule(train_data, val_data, batch_size=args.batch_size)
+data = GODDataModule(train_data, train_data, batch_size=args.batch_size)
 
 # instantiate model
 if args.ckpt is not None:

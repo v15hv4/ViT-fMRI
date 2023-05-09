@@ -1,5 +1,6 @@
 import glob
 import numpy as np
+import nibabel as nib
 
 import torch
 import pytorch_lightning as pl
@@ -9,11 +10,31 @@ from torch.utils.data import Dataset, DataLoader
 class GODData(Dataset):
     DATA_PATH = "data/processed"
 
-    def __init__(self, subject="01", session_id="01", task="perception", train=True, transform=None):
+    def __init__(self, subject="01", session_id="01", task="perception", train=True, transform=None, rois=[]):
         self.subject = subject
         self.session = f"{task}{'Training' if train else 'Test'}{session_id}"
         self.length = len(glob.glob(f"{self.DATA_PATH}/sub-{subject}/ses-{self.session}/fmris/*"))
         self.transform = transform
+
+        # construct ROI mask
+        roi_mask = np.zeros((3, 50, 64, 64))
+        for roi in rois:
+            roi_mask_LH = nib.load(f"{self.DATA_PATH}/sub-{subject}/masks/sub-{subject}_mask_LH_{roi}.nii.gz").get_fdata()
+            roi_mask_LH = roi_mask_LH.transpose(2, 1, 0)
+            roi_mask_LH = np.vstack([roi_mask_LH[np.newaxis, ...]] * 3)
+
+            roi_mask_RH = nib.load(f"{self.DATA_PATH}/sub-{subject}/masks/sub-{subject}_mask_RH_{roi}.nii.gz").get_fdata()
+            roi_mask_RH = roi_mask_RH.transpose(2, 1, 0)
+            roi_mask_RH = np.vstack([roi_mask_RH[np.newaxis, ...]] * 3)
+
+            roi_mask += roi_mask_LH
+            roi_mask += roi_mask_RH
+
+        # if ROI list is empty, use all voxels
+        if len(rois) == 0:
+            roi_mask = np.ones((3, 50, 64, 64))
+
+        self.roi_mask = roi_mask.astype(bool)
 
     def __len__(self):
         return self.length
@@ -22,6 +43,9 @@ class GODData(Dataset):
         # load data
         fmri = np.load(f"{self.DATA_PATH}/sub-{self.subject}/ses-{self.session}/fmris/{idx}.npy")
         category = np.load(f"{self.DATA_PATH}/sub-{self.subject}/ses-{self.session}/categories/{idx}.npy")
+
+        # apply ROI mask to fMRI data
+        fmri = np.where(self.roi_mask, fmri, 0)
 
         # convert to tensor
         fmri = torch.from_numpy(fmri).float()
